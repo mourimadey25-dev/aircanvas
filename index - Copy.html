@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Futuristic AI Air Canvas</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0f0f0f;
+            color: #00ffcc;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 { margin-top: 10px; text-shadow: 0 0 10px #00ffcc; }
+
+        .canvas-wrapper {
+            position: relative;
+            width: 640px;
+            height: 480px;
+            margin-top: 10px;
+            border: 2px solid #00ffcc;
+            box-shadow: 0 0 20px rgba(0, 255, 204, 0.3);
+            border-radius: 15px;
+            overflow: hidden;
+        }
+
+        canvas {
+            position: absolute;
+            left: 0;
+            top: 0;
+            transform: scaleX(-1); /* Mirror view */
+        }
+
+        #drawing_canvas { z-index: 10; cursor: crosshair; }
+        #bg_canvas { z-index: 5; }
+
+        .controls {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        button {
+            background: transparent;
+            color: #ff4757;
+            border: 2px solid #ff4757;
+            padding: 10px 25px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: 0.3s;
+            text-transform: uppercase;
+        }
+
+        button:hover {
+            background: #ff4757;
+            color: white;
+            box-shadow: 0 0 15px #ff4757;
+        }
+
+        .instructions { font-size: 0.9rem; color: #888; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <h1>NEON AIR CANVAS</h1>
+
+    <div class="canvas-wrapper">
+        <video id="webcam" style="display:none;"></video>
+        <canvas id="bg_canvas" width="640" height="480"></canvas>
+        <canvas id="drawing_canvas" width="640" height="480"></canvas>
+    </div>
+
+    <div class="controls">
+        <button onclick="clearCanvas()">Erase All Data</button>
+        <div class="instructions">
+            ☝️ <strong>1 Finger:</strong> Draw | ✌️ <strong>2 Fingers:</strong> Hover | 🖐️ <strong>Full Palm:</strong> Eraser
+        </div>
+    </div>
+
+    <script>
+        const videoElement = document.getElementById('webcam');
+        const bgCanvas = document.getElementById('bg_canvas');
+        const drawCanvas = document.getElementById('drawing_canvas');
+        const bgCtx = bgCanvas.getContext('2d');
+        const drawCtx = drawCanvas.getContext('2d');
+
+        let prevX = null;
+        let prevY = null;
+
+        function onResults(results) {
+            // 1. Clear Background and Draw Camera Feed
+            bgCtx.save();
+            bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+            bgCtx.drawImage(results.image, 0, 0, bgCanvas.width, bgCanvas.height);
+
+            if (results.multiHandLandmarks) {
+                for (const landmarks of results.multiHandLandmarks) {
+                    
+                    // --- FUTURISTIC SKELETON DRAWING ---
+                    // यहाँ हम हाथ की नसों वाली ग्रीन लाइन्स बना रहे हैं
+                    drawConnectors(bgCtx, landmarks, HAND_CONNECTIONS, {color: '#00FFCC', lineWidth: 4});
+                    drawLandmarks(bgCtx, landmarks, {color: '#FF0000', lineWidth: 1, radius: 3});
+
+                    // Points for logic
+                    const indexTip = landmarks[8];
+                    const middleTip = landmarks[12];
+                    const ringTip = landmarks[16];
+                    const pinkyTip = landmarks[20];
+
+                    const x = indexTip.x * drawCanvas.width;
+                    const y = indexTip.y * drawCanvas.height;
+
+                    // Finger States
+                    const isIndexUp = landmarks[8].y < landmarks[6].y;
+                    const isMiddleUp = landmarks[12].y < landmarks[10].y;
+                    const isRingUp = landmarks[16].y < landmarks[14].y;
+                    const isPinkyUp = landmarks[20].y < landmarks[18].y;
+
+                    // LOGIC
+                    // 1. ERASER (All fingers up)
+                    if (isIndexUp && isMiddleUp && isRingUp && isPinkyUp) {
+                        drawCtx.globalCompositeOperation = 'destination-out';
+                        drawCtx.beginPath();
+                        drawCtx.arc(x, y, 40, 0, Math.PI * 2);
+                        drawCtx.fill();
+                        prevX = null; prevY = null;
+                    } 
+                    // 2. MOVE/HOVER (Index & Middle fingers up)
+                    else if (isIndexUp && isMiddleUp) {
+                        prevX = null; prevY = null;
+                        // Draw a small target circle on the background only
+                        bgCtx.beginPath();
+                        bgCtx.strokeStyle = "#00FFCC";
+                        bgCtx.arc(x, y, 15, 0, Math.PI * 2);
+                        bgCtx.stroke();
+                    } 
+                    // 3. DRAW (Only Index up)
+                    else if (isIndexUp) {
+                        drawCtx.globalCompositeOperation = 'source-over';
+                        if (prevX !== null && prevY !== null) {
+                            drawCtx.beginPath();
+                            drawCtx.strokeStyle = "#00ffcc"; // Neon Blue/Green Line
+                            drawCtx.lineWidth = 6;
+                            drawCtx.lineCap = "round";
+                            drawCtx.shadowBlur = 10;
+                            drawCtx.shadowColor = "#00ffcc";
+                            drawCtx.moveTo(prevX, prevY);
+                            drawCtx.lineTo(x, y);
+                            drawCtx.stroke();
+                        }
+                        prevX = x; prevY = y;
+                    } else {
+                        prevX = null; prevY = null;
+                    }
+                }
+            }
+            bgCtx.restore();
+        }
+
+        // Initialize MediaPipe Hands
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.7
+        });
+
+        hands.onResults(onResults);
+
+        // Camera setup
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({image: videoElement});
+            },
+            width: 640,
+            height: 480
+        });
+        camera.start();
+
+        function clearCanvas() {
+            drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+        }
+    </script>
+</body>
+</html>

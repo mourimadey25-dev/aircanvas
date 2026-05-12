@@ -1,0 +1,7 @@
+# Exclude development and unused files from build context
+.git
+.github
+*.py
+index - Copy.html
+README.md
+*.md
